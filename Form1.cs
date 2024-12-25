@@ -1,17 +1,20 @@
-﻿using System.Data.SqlClient;
+﻿using log4net;
+using log4net.Config;
+using System.Data.SqlClient;
 using System.IO.Compression;
 using System.Timers;
 using System.Xml;
-
 namespace BackupSqlServerTool
 {
     public partial class MainForm : Form
     {
         private System.Timers.Timer backupTimer;
-
+        private static readonly ILog log = LogManager.GetLogger(typeof(MainForm));
         public MainForm()
         {
             InitializeComponent();
+            XmlConfigurator.Configure(new FileInfo("App.config")); // Hoặc sử dụng một file cấu hình riêng
+            this.Load += MainForm_Load;
             backupTimer = new System.Timers.Timer();
             backupTimer.Elapsed += OnTimedEvent;
             backupTimer.AutoReset = true;
@@ -19,7 +22,7 @@ namespace BackupSqlServerTool
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-            DateTime scheduledTime = DateTime.Today.AddHours(23); // 23h hàng ngày
+            DateTime scheduledTime = DateTime.Today.AddHours(2); // 2h hàng ngày
             if (DateTime.Now > scheduledTime)
             {
                 scheduledTime = scheduledTime.AddDays(1);
@@ -52,10 +55,11 @@ namespace BackupSqlServerTool
 
                 // Xoá các tệp chi tiết đã được nén
                 Directory.Delete(backupFolder, true);
-
+                log.Info($"Backup and compression completed successfully for {dateString}");
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
+                log.Error($"Error backing up database  {ex.Message}");
 
             }
 
@@ -63,8 +67,16 @@ namespace BackupSqlServerTool
 
         private void OnTimedEvent(object sender, ElapsedEventArgs e)
         {
+            try
+            {
 
-            Backup();
+                Backup();
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex.Message);
+
+            }
 
             // Cập nhật thời gian tiếp theo
             backupTimer.Interval = TimeSpan.FromDays(1).TotalMilliseconds;
@@ -111,18 +123,20 @@ namespace BackupSqlServerTool
                                 backupCommand.ExecuteNonQuery();
 
                             }
+                            log.Info($"Database {databaseName} backed up successfully.");
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
-
+                            log.Error($"Error backing up database {databaseName}: {ex.Message}");
                         }
 
                     }
                 }
 
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
+                log.Error($"Error during backup process: {ex.Message}");
 
             }
 
@@ -134,14 +148,14 @@ namespace BackupSqlServerTool
 
             foreach (string backupFile in backupFiles)
             {
-                string zipFileName = Path.GetFileNameWithoutExtension(backupFile) + "_" + DateTime.Now.ToString("hhMMss") + ".zip";
+                string zipFileName = Path.GetFileNameWithoutExtension(backupFile) + "_" + DateTime.Now.ToString("HHmmss") + ".zip";
                 string zipFilePath = Path.Combine(endFolder, zipFileName);
 
                 using (FileStream zipFile = new FileStream(zipFilePath, FileMode.Create))
                 {
                     using (ZipArchive archive = new ZipArchive(zipFile, ZipArchiveMode.Create))
                     {
-                        rtbLog.Text = rtbLog.Text.Insert(0, $"Backup db {zipFileName} \n");
+                        //rtbLog.Text = rtbLog.Text.Insert(0, $"Backup db {zipFileName} \n");
 
                         archive.CreateEntryFromFile(backupFile, Path.GetFileName(backupFile));
                     }
@@ -149,6 +163,7 @@ namespace BackupSqlServerTool
 
                 // Xoá tệp backup đã được nén
                 File.Delete(backupFile);
+                log.Info($"File {backupFile} compressed to {zipFileName}");
             }
         }
         private void label1_Click(object sender, EventArgs e)
@@ -170,6 +185,7 @@ namespace BackupSqlServerTool
                     string selectedFolder = folderDialog.SelectedPath;
                     tblFolder.Text = selectedFolder;
                     rtbLog.Text = rtbLog.Text.Insert(0, $"Select folder {selectedFolder} \n");
+                    log.Info($"Selected folder: {selectedFolder}");
                 }
             }
         }

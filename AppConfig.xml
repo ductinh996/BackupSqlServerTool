@@ -2,6 +2,6 @@
 <configuration>
 	<connectionStrings>
 		<add name="DefaultConnection"
-			 connectionString="Server=TEST;Database=TEST;User Id=sa;Password=123456;Encrypt=false;;TrustServerCertificate=True" />
+			 connectionString="Server=KIRA-ZF;User Id=sasa;Password=abc@123;Encrypt=false;TrustServerCertificate=True" />
 	</connectionStrings>
 </configuration>
