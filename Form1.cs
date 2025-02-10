@@ -1,35 +1,52 @@
 ﻿using log4net;
 using log4net.Config;
 using System.Data.SqlClient;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Timers;
 using System.Xml;
+
 namespace BackupSqlServerTool
 {
     public partial class MainForm : Form
     {
         private System.Timers.Timer backupTimer;
+        private System.Timers.Timer cleanupTimer;
         private static readonly ILog log = LogManager.GetLogger(typeof(MainForm));
+
         public MainForm()
         {
             InitializeComponent();
             XmlConfigurator.Configure(new FileInfo("App.config")); // Hoặc sử dụng một file cấu hình riêng
             this.Load += MainForm_Load;
             backupTimer = new System.Timers.Timer();
-            backupTimer.Elapsed += OnTimedEvent;
+            backupTimer.Elapsed += OnBackupEvent;
             backupTimer.AutoReset = true;
+
+            cleanupTimer = new System.Timers.Timer();
+            cleanupTimer.Elapsed += OnCleanupEvent;
+            cleanupTimer.AutoReset = true;
         }
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-            DateTime scheduledTime = DateTime.Today.AddHours(2); // 2h hàng ngày
-            if (DateTime.Now > scheduledTime)
+            DateTime backupScheduledTime = DateTime.Today.AddHours(0); // 0h hàng ngày
+            if (DateTime.Now > backupScheduledTime)
             {
-                scheduledTime = scheduledTime.AddDays(1);
+                backupScheduledTime = backupScheduledTime.AddDays(1);
             }
-            double interval = (scheduledTime - DateTime.Now).TotalMilliseconds;
-            backupTimer.Interval = interval;
+            double backupInterval = (backupScheduledTime - DateTime.Now).TotalMilliseconds;
+            backupTimer.Interval = backupInterval;
             backupTimer.Start();
+
+            DateTime cleanupScheduledTime = DateTime.Today.AddHours(1); // 1h sáng hàng ngày
+            if (DateTime.Now > cleanupScheduledTime)
+            {
+                cleanupScheduledTime = cleanupScheduledTime.AddDays(1);
+            }
+            double cleanupInterval = (cleanupScheduledTime - DateTime.Now).TotalMilliseconds;
+            cleanupTimer.Interval = cleanupInterval;
+            cleanupTimer.Start();
         }
 
         private void Backup()
@@ -41,45 +58,95 @@ namespace BackupSqlServerTool
                 if (!Directory.Exists(backupFolder))
                 {
                     Directory.CreateDirectory(backupFolder);
-
                 }
+
                 string connectionString = GetConnectionString("DefaultConnection");
                 BackupAllDatabases(connectionString, backupFolder, dateString);
+
                 string zipFolder = Path.Combine(tblFolder.Text, "BackupSQL", dateString);
                 if (!Directory.Exists(zipFolder))
                 {
                     Directory.CreateDirectory(zipFolder);
-
                 }
+
                 CompressBackupFiles(backupFolder, zipFolder);
 
-                // Xoá các tệp chi tiết đã được nén
+                // Xóa các tệp chi tiết đã được nén
                 Directory.Delete(backupFolder, true);
-                log.Info($"Backup and compression completed successfully for {dateString}");
+                LogInfo($"Backup and compression completed successfully for {dateString}");
             }
             catch (Exception ex)
             {
-                log.Error($"Error backing up database  {ex.Message}");
-
+                LogError($"Error backing up database: {ex.Message}");
             }
-
         }
 
-        private void OnTimedEvent(object sender, ElapsedEventArgs e)
+        private void OnBackupEvent(object sender, ElapsedEventArgs e)
         {
             try
             {
-
                 Backup();
             }
             catch (Exception ex)
             {
-                log.Error(ex.Message);
-
+                LogError(ex.Message);
             }
 
             // Cập nhật thời gian tiếp theo
-            backupTimer.Interval = TimeSpan.FromDays(1).TotalMilliseconds;
+            backupTimer.Interval = TimeSpan.FromHours(12).TotalMilliseconds;
+        }
+
+        private void OnCleanupEvent(object sender, ElapsedEventArgs e)
+        {
+            try
+            {
+                DeleteOldBackupFolders(Path.Combine(tblFolder.Text, "BackupSQL"), 7);
+            }
+            catch (Exception ex)
+            {
+                LogError(ex.Message);
+            }
+
+            // Cập nhật thời gian tiếp theo
+            cleanupTimer.Interval = TimeSpan.FromHours(24).TotalMilliseconds;
+        }
+
+        private void DeleteOldBackupFolders(string rootFolder, int days)
+        {
+            try
+            {
+                DirectoryInfo directoryInfo = new DirectoryInfo(rootFolder);
+                foreach (var directory in directoryInfo.GetDirectories())
+                {
+                    try
+                    {
+                        if (DateTime.Now - directory.CreationTime > TimeSpan.FromDays(days) && directory.Name != "Details")
+                        {
+                            // Kiểm tra và xóa thuộc tính chỉ đọc nếu có
+                            if ((directory.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+                            {
+                                directory.Attributes = FileAttributes.Normal;
+                            }
+
+                            directory.Delete(true);
+                            LogInfo($"Deleted old backup folder: {directory.FullName}");
+                        }
+                    }
+                    catch (UnauthorizedAccessException ex)
+                    {
+                        LogError($"Access denied to the path '{directory.FullName}': {ex.Message}");
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError($"Error deleting folder '{directory.FullName}': {ex.Message}");
+                    }
+                }
+                LogInfo("Old backup folders cleanup completed.");
+            }
+            catch (Exception ex)
+            {
+                LogError($"Error deleting old backup folders: {ex.Message}");
+            }
         }
 
         private string GetConnectionString(string name)
@@ -121,25 +188,20 @@ namespace BackupSqlServerTool
                             using (SqlCommand backupCommand = new SqlCommand(backupQuery, connection))
                             {
                                 backupCommand.ExecuteNonQuery();
-
                             }
-                            log.Info($"Database {databaseName} backed up successfully.");
+                            LogInfo($"Database {databaseName} backed up successfully.");
                         }
                         catch (Exception ex)
                         {
-                            log.Error($"Error backing up database {databaseName}: {ex.Message}");
+                            LogError($"Error backing up database {databaseName}: {ex.Message}");
                         }
-
                     }
                 }
-
             }
             catch (Exception ex)
             {
-                log.Error($"Error during backup process: {ex.Message}");
-
+                LogError($"Error during backup process: {ex.Message}");
             }
-
         }
 
         private void CompressBackupFiles(string sourceFolder, string endFolder)
@@ -155,20 +217,61 @@ namespace BackupSqlServerTool
                 {
                     using (ZipArchive archive = new ZipArchive(zipFile, ZipArchiveMode.Create))
                     {
-                        //rtbLog.Text = rtbLog.Text.Insert(0, $"Backup db {zipFileName} \n");
-
                         archive.CreateEntryFromFile(backupFile, Path.GetFileName(backupFile));
                     }
                 }
 
-                // Xoá tệp backup đã được nén
+                // Xóa tệp backup đã được nén
                 File.Delete(backupFile);
-                log.Info($"File {backupFile} compressed to {zipFileName}");
+                LogInfo($"File {backupFile} compressed to {zipFileName}");
             }
         }
+
+        private void LogInfo(string message)
+        {
+            if (rtbLog.InvokeRequired)
+            {
+                rtbLog.Invoke(new Action<string>(LogInfo), message);
+            }
+            else
+            {
+                rtbLog.AppendText($"{DateTime.Now} [INFO]: {message}\n");
+                log.Info(message);
+            }
+        }
+
+        private void LogError(string message)
+        {
+            if (rtdFail.InvokeRequired)
+            {
+                rtdFail.Invoke(new Action<string>(LogError), message);
+            }
+            else
+            {
+                rtdFail.AppendText($"{DateTime.Now} [ERROR]: {message}\n");
+                log.Error(message);
+            }
+        }
+
+        private void OpenLogFile()
+        {
+            string logFilePath = Path.Combine(Directory.GetCurrentDirectory(), "logs"); // Đặt đường dẫn tới file log của bạn
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = logFilePath,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                LogError($"Error opening log file: {ex.Message}");
+            }
+        }
+
         private void label1_Click(object sender, EventArgs e)
         {
-
         }
 
         private void btnUpdate_Click(object sender, EventArgs e)
@@ -184,10 +287,21 @@ namespace BackupSqlServerTool
                 {
                     string selectedFolder = folderDialog.SelectedPath;
                     tblFolder.Text = selectedFolder;
-                    rtbLog.Text = rtbLog.Text.Insert(0, $"Select folder {selectedFolder} \n");
+                    rtbLog.AppendText($"{DateTime.Now} [INFO]: Select folder {selectedFolder}\n");
                     log.Info($"Selected folder: {selectedFolder}");
                 }
             }
         }
+
+        private void btnDeleteFolder_Click(object sender, EventArgs e)
+        {
+            DeleteOldBackupFolders(Path.Combine(tblFolder.Text, "BackupSQL"), 7);
+        }
+
+        private void btnOpenLogFile_Click(object sender, EventArgs e)
+        {
+            OpenLogFile();
+        }
+
     }
 }
