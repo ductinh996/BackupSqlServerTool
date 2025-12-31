@@ -3,6 +3,7 @@
 	<appSettings>
 		<add key="DriveFolderName" value="" />
 		<add key="BackupDatabases" value="" />
+		<add key="LocalBackupFolder" value="" />
 	</appSettings>
 	<connectionStrings>
 		<add name="DefaultConnection"

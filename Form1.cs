@@ -18,6 +18,7 @@ namespace BackupSqlServerTool
     {
         private System.Timers.Timer backupTimer;
         private System.Timers.Timer cleanupTimer;
+        private System.Timers.Timer fileBackupTimer;
         private static readonly ILog log = LogManager.GetLogger(typeof(MainForm));
 
         private GoogleDriveHelper driveHelper;
@@ -45,6 +46,7 @@ namespace BackupSqlServerTool
             // Load Config
             txtDriveFolderName.Text = GetConfigValue("DriveFolderName");
             txtDbList.Text = GetConfigValue("BackupDatabases");
+            txtLocalFolder.Text = GetConfigValue("LocalBackupFolder");
             LoadDbConfigToFields();
 
             DateTime backupScheduledTime = DateTime.Today.AddHours(0); // 0h hàng ngày
@@ -64,7 +66,11 @@ namespace BackupSqlServerTool
             double cleanupInterval = (cleanupScheduledTime - DateTime.Now).TotalMilliseconds;
             cleanupTimer.Interval = cleanupInterval;
             cleanupTimer.Start();
+
+            SetupFileBackupTimer();
         }
+
+ 
 
         private async void BtnLoginDrive_Click(object sender, EventArgs e)
         {
@@ -605,6 +611,148 @@ namespace BackupSqlServerTool
         private void dbTable_Paint_1(object sender, PaintEventArgs e)
         {
 
+        }
+
+        private void SetupFileBackupTimer()
+        {
+            try 
+            {
+                DateTime now = DateTime.Now;
+                // Find next Wednesday
+                int daysUntilWed = ((int)DayOfWeek.Wednesday - (int)now.DayOfWeek + 7) % 7;
+                DateTime nextWed = now.Date.AddDays(daysUntilWed).AddHours(4); // 4:00 AM
+
+                if (nextWed <= now)
+                {
+                    nextWed = nextWed.AddDays(7);
+                }
+
+                double interval = (nextWed - now).TotalMilliseconds;
+                
+                if (fileBackupTimer == null)
+                {
+                    fileBackupTimer = new System.Timers.Timer();
+                    fileBackupTimer.Elapsed += async (s, e) => await PerformFileBackup(true);
+                    fileBackupTimer.AutoReset = false; 
+                }
+                
+                fileBackupTimer.Interval = interval;
+                fileBackupTimer.Start();
+                LogInfo($"Lên lịch backup file folder (thứ 4 - 4h sáng) vào: {nextWed.ToString("dd/MM/yyyy HH:mm:ss")}");
+            }
+            catch (Exception ex)
+            {
+                LogError($"Lỗi SetupFileBackupTimer: {ex.Message}");
+            }
+        }
+
+        private async Task PerformFileBackup(bool isAuto)
+        {
+            string localFolder = txtLocalFolder.Text.Trim();
+            if (string.IsNullOrEmpty(localFolder) || !Directory.Exists(localFolder))
+            {
+                string msg = "Thư mục backup file không hợp lệ hoặc chưa được chọn.";
+                if (!isAuto) MessageBox.Show(msg, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                LogError(msg);
+                if (isAuto) RescheduleFileBackup();
+                return;
+            }
+
+            string driveFolderName = txtDriveFolderName.Text.Trim();
+            if (string.IsNullOrEmpty(driveFolderName))
+            {
+                string msg = "Chưa cấu hình tên thư mục trên Google Drive.";
+                if (!isAuto) MessageBox.Show(msg, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                LogError(msg);
+                if (isAuto) RescheduleFileBackup();
+                return;
+            }
+
+            try
+            {
+                if (!isAuto) this.Invoke((MethodInvoker)delegate { btnLocalBackup.Enabled = false; });
+                LogInfo($"Bắt đầu backup thư mục: {localFolder}");
+
+                if (!driveHelper.IsConnected)
+                {
+                    await driveHelper.Authenticate();
+                }
+
+                // 1. Get/Create Root Folder
+                string rootId = await driveHelper.GetOrCreateFolder(driveFolderName);
+                
+                // 2. Get/Create Subfolder "FileDe" inside Root Folder
+                string targetFolderId = await driveHelper.GetOrCreateFolder("FileDe", rootId);
+                
+                var files = Directory.GetFiles(localFolder);
+                int count = 0;
+                int total = files.Length;
+
+                foreach (var file in files)
+                {
+                    string fileName = Path.GetFileName(file);
+                    LogInfo($"Đang xử lý file ({++count}/{total}): {fileName} ...");
+                    
+                    var fi = new FileInfo(file);
+                    string contentType = "application/octet-stream";
+                    
+                    string ext = fi.Extension.ToLower();
+                    if (ext == ".jpg" || ext == ".jpeg") contentType = "image/jpeg";
+                    else if (ext == ".png") contentType = "image/png";
+                    else if (ext == ".zip") contentType = "application/zip";
+                    else if (ext == ".pdf") contentType = "application/pdf";
+                    else if (ext == ".mp4") contentType = "video/mp4";
+
+                    // Check if file exists on Drive and has same size to skip
+                    var existingFile = await driveHelper.GetFileByName(fileName, targetFolderId);
+                    if (existingFile != null && existingFile.Size.HasValue && existingFile.Size.Value == fi.Length)
+                    {
+                        LogInfo($"File {fileName} đã tồn tại và giống kích thước. Bỏ qua.");
+                        continue;
+                    }
+
+                    await driveHelper.UploadOrUpdateFile(file, fileName, targetFolderId, contentType);
+                    LogInfo($"Upload thành công: {fileName} vào thư mục FileDe");
+                }
+
+                LogInfo("Backup thư mục hoàn tất!");
+                if (!isAuto) MessageBox.Show("Backup thư mục hoàn tất!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                LogError($"Lỗi backup thư mục: {ex.Message}");
+                if (!isAuto) MessageBox.Show($"Lỗi: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                if (!isAuto) this.Invoke((MethodInvoker)delegate { btnLocalBackup.Enabled = true; });
+                if (isAuto) RescheduleFileBackup();
+            }
+        }
+
+        private void RescheduleFileBackup()
+        {
+            // Reset timer for next week
+            fileBackupTimer.Interval = TimeSpan.FromDays(7).TotalMilliseconds;
+            fileBackupTimer.Start();
+            LogInfo($"Đã lên lịch backup file tiếp theo sau 7 ngày.");
+        }
+
+        private void BtnSelectLocalFolder_Click(object sender, EventArgs e)
+        {
+            using (var fbd = new FolderBrowserDialog())
+            {
+                if (fbd.ShowDialog() == DialogResult.OK && !string.IsNullOrWhiteSpace(fbd.SelectedPath))
+                {
+                    txtLocalFolder.Text = fbd.SelectedPath;
+                    SaveConfigValue("LocalBackupFolder", fbd.SelectedPath);
+                }
+            }
+        }
+
+        private async void BtnLocalBackup_Click(object sender, EventArgs e)
+        {
+            await PerformFileBackup(false);
         }
     }
 }

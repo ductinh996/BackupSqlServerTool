@@ -78,13 +78,20 @@ namespace BackupSqlServerTool
             }
         }
 
-        public async Task<string> GetOrCreateFolder(string folderName)
+        public async Task<string> GetOrCreateFolder(string folderName, string parentId = null)
         {
             if (service == null) await Authenticate();
 
-            // Tìm folder xem có tồn tại không (chỉ tìm trong root hoặc các folder do app tạo ra nếu dùng scope DriveFile)
+            // Tìm folder xem có tồn tại không
             var request = service.Files.List();
-            request.Q = $"mimeType = 'application/vnd.google-apps.folder' and name = '{folderName}' and trashed = false";
+            string query = $"mimeType = 'application/vnd.google-apps.folder' and name = '{folderName}' and trashed = false";
+            
+            if (!string.IsNullOrEmpty(parentId))
+            {
+                query += $" and '{parentId}' in parents";
+            }
+
+            request.Q = query;
             request.Fields = "files(id, name)";
             
             var result = await request.ExecuteAsync();
@@ -102,6 +109,11 @@ namespace BackupSqlServerTool
                 MimeType = "application/vnd.google-apps.folder"
             };
 
+            if (!string.IsNullOrEmpty(parentId))
+            {
+                fileMetadata.Parents = new List<string> { parentId };
+            }
+
             var createRequest = service.Files.Create(fileMetadata);
             createRequest.Fields = "id";
             var file = await createRequest.ExecuteAsync();
@@ -109,7 +121,7 @@ namespace BackupSqlServerTool
             return file.Id;
         }
 
-        public async Task UploadOrUpdateFile(string filePath, string fileName, string folderId)
+        public async Task UploadOrUpdateFile(string filePath, string fileName, string folderId, string contentType = "application/zip")
         {
             if (service == null)
             {
@@ -117,7 +129,8 @@ namespace BackupSqlServerTool
             }
 
             // 1. Tìm file đã tồn tại trong folder chưa
-            var fileId = await FindFileIdByName(fileName, folderId);
+            var existingFile = await GetFileByName(fileName, folderId);
+            string fileId = existingFile?.Id;
 
             var fileMetadata = new Google.Apis.Drive.v3.Data.File()
             {
@@ -130,20 +143,25 @@ namespace BackupSqlServerTool
                 fileMetadata.Parents = new List<string> { folderId };
             }
 
-            using (var stream = new FileStream(filePath, FileMode.Open))
+            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
             {
                 Google.Apis.Upload.IUploadProgress progress;
+                // Set ChunkSize to 10MB for better performance with large files (supports resumable upload)
+                const int UploadChunkSize = 10 * 1024 * 1024;
+
                 if (string.IsNullOrEmpty(fileId))
                 {
                     // Tạo mới
-                    var request = service.Files.Create(fileMetadata, stream, "application/zip");
+                    var request = service.Files.Create(fileMetadata, stream, contentType);
+                    request.ChunkSize = UploadChunkSize;
                     request.Fields = "id";
                     progress = await request.UploadAsync();
                 }
                 else
                 {
                     // Update (ghi đè)
-                    var request = service.Files.Update(fileMetadata, fileId, stream, "application/zip");
+                    var request = service.Files.Update(fileMetadata, fileId, stream, contentType);
+                    request.ChunkSize = UploadChunkSize;
                     request.Fields = "id";
                     progress = await request.UploadAsync();
                 }
@@ -155,8 +173,10 @@ namespace BackupSqlServerTool
             }
         }
 
-        private async Task<string> FindFileIdByName(string fileName, string folderId)
+        public async Task<Google.Apis.Drive.v3.Data.File> GetFileByName(string fileName, string folderId)
         {
+            if (service == null) await Authenticate();
+
             var request = service.Files.List();
             string query = $"name = '{fileName}' and trashed = false";
             
@@ -166,11 +186,15 @@ namespace BackupSqlServerTool
             }
 
             request.Q = query;
-            request.Fields = "files(id, name)";
+            request.Fields = "files(id, name, size, md5Checksum, modifiedTime)";
 
             var result = await request.ExecuteAsync();
-            var file = result.Files.FirstOrDefault();
+            return result.Files.FirstOrDefault();
+        }
 
+        private async Task<string> FindFileIdByName(string fileName, string folderId)
+        {
+            var file = await GetFileByName(fileName, folderId);
             return file?.Id;
         }
     }

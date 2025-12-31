@@ -1,4 +1,4 @@
-﻿namespace BackupSqlServerTool
+namespace BackupSqlServerTool
 {
     partial class MainForm
     {
@@ -58,11 +58,19 @@
             lblDriveStatus = new Label();
             lblDbList = new Label();
             txtDbList = new TextBox();
+            grpLocalBackup = new GroupBox();
+            localBackupTable = new TableLayoutPanel();
+            lblLocalFolder = new Label();
+            txtLocalFolder = new TextBox();
+            btnSelectLocalFolder = new Button();
+            btnLocalBackup = new Button();
             tbl.SuspendLayout();
             grpDbConfig.SuspendLayout();
             dbTable.SuspendLayout();
             grpGoogleDrive.SuspendLayout();
             driveTable.SuspendLayout();
+            grpLocalBackup.SuspendLayout();
+            localBackupTable.SuspendLayout();
             SuspendLayout();
             // 
             // tbl
@@ -78,24 +86,26 @@
             tbl.Controls.Add(Folder, 0, 3);
             tbl.Controls.Add(btnSelectFolder, 2, 3);
             tbl.Controls.Add(label4, 0, 2);
-            tbl.Controls.Add(btnUpdate, 1, 6);
+            tbl.Controls.Add(btnUpdate, 1, 7);
             tbl.Controls.Add(rtdFail, 2, 2);
             tbl.Controls.Add(label2, 1, 1);
             tbl.Controls.Add(label3, 2, 1);
-            tbl.Controls.Add(btnDeleteFolder, 2, 6);
-            tbl.Controls.Add(btnOpenLog, 0, 6);
+            tbl.Controls.Add(btnDeleteFolder, 2, 7);
+            tbl.Controls.Add(btnOpenLog, 0, 7);
             tbl.Controls.Add(grpDbConfig, 1, 4);
             tbl.Controls.Add(grpGoogleDrive, 1, 5);
+            tbl.Controls.Add(grpLocalBackup, 1, 6);
             tbl.Dock = DockStyle.Fill;
             tbl.Location = new Point(0, 0);
             tbl.Name = "tbl";
-            tbl.RowCount = 7;
+            tbl.RowCount = 8;
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
             tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 140F));
+            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 60F));
             tbl.Size = new Size(1041, 700);
             tbl.TabIndex = 6;
@@ -117,7 +127,7 @@
             rtbLog.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             rtbLog.Location = new Point(178, 81);
             rtbLog.Name = "rtbLog";
-            rtbLog.Size = new Size(427, 296);
+            rtbLog.Size = new Size(427, 216);
             rtbLog.TabIndex = 8;
             rtbLog.Text = "";
             // 
@@ -125,7 +135,7 @@
             // 
             tblFolder.Dock = DockStyle.Fill;
             tblFolder.Font = new Font("Segoe UI", 14.25F, FontStyle.Bold);
-            tblFolder.Location = new Point(178, 383);
+            tblFolder.Location = new Point(178, 303);
             tblFolder.Name = "tblFolder";
             tblFolder.Size = new Size(427, 33);
             tblFolder.TabIndex = 9;
@@ -136,7 +146,7 @@
             Folder.AutoSize = true;
             Folder.Dock = DockStyle.Fill;
             Folder.Font = new Font("Segoe UI", 14.25F, FontStyle.Bold);
-            Folder.Location = new Point(3, 380);
+            Folder.Location = new Point(3, 300);
             Folder.Name = "Folder";
             Folder.Size = new Size(169, 40);
             Folder.TabIndex = 10;
@@ -149,7 +159,7 @@
             btnSelectFolder.FlatStyle = FlatStyle.Flat;
             btnSelectFolder.Font = new Font("Segoe UI", 14.25F, FontStyle.Bold);
             btnSelectFolder.ForeColor = Color.White;
-            btnSelectFolder.Location = new Point(611, 383);
+            btnSelectFolder.Location = new Point(611, 303);
             btnSelectFolder.Name = "btnSelectFolder";
             btnSelectFolder.Size = new Size(35, 34);
             btnSelectFolder.TabIndex = 11;
@@ -163,7 +173,7 @@
             label4.Font = new Font("Segoe UI", 12F, FontStyle.Italic);
             label4.Location = new Point(3, 78);
             label4.Name = "label4";
-            label4.Size = new Size(169, 302);
+            label4.Size = new Size(169, 222);
             label4.TabIndex = 12;
             label4.Text = "Clear folder Obj if build fail";
             label4.TextAlign = ContentAlignment.MiddleLeft;
@@ -188,7 +198,7 @@
             rtdFail.Location = new Point(611, 80);
             rtdFail.Margin = new Padding(3, 2, 3, 2);
             rtdFail.Name = "rtdFail";
-            rtdFail.Size = new Size(427, 298);
+            rtdFail.Size = new Size(427, 218);
             rtdFail.TabIndex = 14;
             rtdFail.Text = "";
             // 
@@ -251,7 +261,7 @@
             tbl.SetColumnSpan(grpDbConfig, 2);
             grpDbConfig.Controls.Add(dbTable);
             grpDbConfig.Dock = DockStyle.Fill;
-            grpDbConfig.Location = new Point(178, 423);
+            grpDbConfig.Location = new Point(178, 343);
             grpDbConfig.Name = "grpDbConfig";
             grpDbConfig.Size = new Size(860, 74);
             grpDbConfig.TabIndex = 18;
@@ -341,7 +351,8 @@
             // 
             txtDbPassword.Dock = DockStyle.Fill;
             txtDbPassword.Font = new Font("Segoe UI", 9.75F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            txtDbPassword.Location = new Point(525, 3);
+            txtDbPassword.Location = new Point(525, 10);
+            txtDbPassword.Margin = new Padding(3, 10, 3, 3);
             txtDbPassword.Name = "txtDbPassword";
             txtDbPassword.Size = new Size(193, 25);
             txtDbPassword.TabIndex = 5;
@@ -366,7 +377,7 @@
             tbl.SetColumnSpan(grpGoogleDrive, 2);
             grpGoogleDrive.Controls.Add(driveTable);
             grpGoogleDrive.Dock = DockStyle.Fill;
-            grpGoogleDrive.Location = new Point(178, 503);
+            grpGoogleDrive.Location = new Point(178, 423);
             grpGoogleDrive.Name = "grpGoogleDrive";
             grpGoogleDrive.Size = new Size(860, 134);
             grpGoogleDrive.TabIndex = 19;
@@ -471,6 +482,89 @@
             txtDbList.TabIndex = 5;
             txtDbList.TextChanged += TxtDbList_TextChanged;
             // 
+            // grpLocalBackup
+            // 
+            tbl.SetColumnSpan(grpLocalBackup, 2);
+            grpLocalBackup.Controls.Add(localBackupTable);
+            grpLocalBackup.Dock = DockStyle.Fill;
+            grpLocalBackup.Location = new Point(178, 563);
+            grpLocalBackup.Name = "grpLocalBackup";
+            grpLocalBackup.Size = new Size(860, 74);
+            grpLocalBackup.TabIndex = 20;
+            grpLocalBackup.TabStop = false;
+            grpLocalBackup.Text = "Backup Thư Mục (Ảnh/File Lớn)";
+            // 
+            // localBackupTable
+            // 
+            localBackupTable.ColumnCount = 4;
+            localBackupTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
+            localBackupTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            localBackupTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F));
+            localBackupTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
+            localBackupTable.Controls.Add(lblLocalFolder, 0, 0);
+            localBackupTable.Controls.Add(txtLocalFolder, 1, 0);
+            localBackupTable.Controls.Add(btnSelectLocalFolder, 2, 0);
+            localBackupTable.Controls.Add(btnLocalBackup, 3, 0);
+            localBackupTable.Dock = DockStyle.Fill;
+            localBackupTable.Location = new Point(3, 19);
+            localBackupTable.Name = "localBackupTable";
+            localBackupTable.RowCount = 1;
+            localBackupTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            localBackupTable.Size = new Size(854, 52);
+            localBackupTable.TabIndex = 0;
+            // 
+            // lblLocalFolder
+            // 
+            lblLocalFolder.AutoSize = true;
+            lblLocalFolder.Dock = DockStyle.Fill;
+            lblLocalFolder.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            lblLocalFolder.Location = new Point(3, 0);
+            lblLocalFolder.Name = "lblLocalFolder";
+            lblLocalFolder.Size = new Size(94, 52);
+            lblLocalFolder.TabIndex = 0;
+            lblLocalFolder.Text = "Thư Mục:";
+            lblLocalFolder.TextAlign = ContentAlignment.MiddleLeft;
+            // 
+            // txtLocalFolder
+            // 
+            txtLocalFolder.Dock = DockStyle.Fill;
+            txtLocalFolder.Font = new Font("Segoe UI", 10F);
+            txtLocalFolder.Location = new Point(103, 12);
+            txtLocalFolder.Margin = new Padding(3, 12, 3, 3);
+            txtLocalFolder.Name = "txtLocalFolder";
+            txtLocalFolder.Size = new Size(558, 25);
+            txtLocalFolder.TabIndex = 1;
+            // 
+            // btnSelectLocalFolder
+            // 
+            btnSelectLocalFolder.BackColor = Color.Orange;
+            btnSelectLocalFolder.Dock = DockStyle.Fill;
+            btnSelectLocalFolder.FlatStyle = FlatStyle.Flat;
+            btnSelectLocalFolder.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            btnSelectLocalFolder.ForeColor = Color.White;
+            btnSelectLocalFolder.Location = new Point(667, 3);
+            btnSelectLocalFolder.Name = "btnSelectLocalFolder";
+            btnSelectLocalFolder.Size = new Size(34, 46);
+            btnSelectLocalFolder.TabIndex = 2;
+            btnSelectLocalFolder.Text = "...";
+            btnSelectLocalFolder.UseVisualStyleBackColor = false;
+            btnSelectLocalFolder.Click += BtnSelectLocalFolder_Click;
+            // 
+            // btnLocalBackup
+            // 
+            btnLocalBackup.BackColor = Color.Purple;
+            btnLocalBackup.Dock = DockStyle.Fill;
+            btnLocalBackup.FlatStyle = FlatStyle.Flat;
+            btnLocalBackup.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            btnLocalBackup.ForeColor = Color.White;
+            btnLocalBackup.Location = new Point(707, 3);
+            btnLocalBackup.Name = "btnLocalBackup";
+            btnLocalBackup.Size = new Size(144, 46);
+            btnLocalBackup.TabIndex = 3;
+            btnLocalBackup.Text = "Backup Ngay";
+            btnLocalBackup.UseVisualStyleBackColor = false;
+            btnLocalBackup.Click += BtnLocalBackup_Click;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -487,6 +581,9 @@
             grpGoogleDrive.ResumeLayout(false);
             driveTable.ResumeLayout(false);
             driveTable.PerformLayout();
+            grpLocalBackup.ResumeLayout(false);
+            localBackupTable.ResumeLayout(false);
+            localBackupTable.PerformLayout();
             ResumeLayout(false);
         }
 
@@ -522,5 +619,11 @@
         private Label lblDriveStatus;
         private Label lblDbList;
         private TextBox txtDbList;
+        private GroupBox grpLocalBackup;
+        private TableLayoutPanel localBackupTable;
+        private Label lblLocalFolder;
+        private TextBox txtLocalFolder;
+        private Button btnSelectLocalFolder;
+        private Button btnLocalBackup;
     }
 }
