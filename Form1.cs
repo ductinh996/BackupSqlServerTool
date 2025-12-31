@@ -678,7 +678,11 @@ namespace BackupSqlServerTool
                     await driveHelper.Authenticate();
                 }
 
-                string rootId = await driveHelper.GetOrCreateFolder(driveFolderName);
+                string baseRootId = await driveHelper.GetOrCreateFolder(driveFolderName);
+
+                // Create subfolder for the selected local folder
+                string localFolderName = new DirectoryInfo(localFolder).Name;
+                string rootId = await driveHelper.GetOrCreateFolder(localFolderName, baseRootId);
 
                 var files = Directory.GetFiles(localFolder, "*", SearchOption.AllDirectories);
                 int count = 0;
