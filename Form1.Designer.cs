@@ -29,7 +29,6 @@ namespace BackupSqlServerTool
         private void InitializeComponent()
         {
             tbl = new TableLayoutPanel();
-            label1 = new Label();
             rtbLog = new RichTextBox();
             tblFolder = new TextBox();
             Folder = new Label();
@@ -64,6 +63,8 @@ namespace BackupSqlServerTool
             txtLocalFolder = new TextBox();
             btnSelectLocalFolder = new Button();
             btnLocalBackup = new Button();
+            label1 = new Label();
+            label5 = new Label();
             tbl.SuspendLayout();
             grpDbConfig.SuspendLayout();
             dbTable.SuspendLayout();
@@ -80,7 +81,6 @@ namespace BackupSqlServerTool
             tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 175F));
             tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            tbl.Controls.Add(label1, 1, 0);
             tbl.Controls.Add(rtbLog, 1, 2);
             tbl.Controls.Add(tblFolder, 1, 3);
             tbl.Controls.Add(Folder, 0, 3);
@@ -95,6 +95,8 @@ namespace BackupSqlServerTool
             tbl.Controls.Add(grpDbConfig, 1, 4);
             tbl.Controls.Add(grpGoogleDrive, 1, 5);
             tbl.Controls.Add(grpLocalBackup, 1, 6);
+            tbl.Controls.Add(label1, 0, 0);
+            tbl.Controls.Add(label5, 2, 0);
             tbl.Dock = DockStyle.Fill;
             tbl.Location = new Point(0, 0);
             tbl.Name = "tbl";
@@ -102,24 +104,13 @@ namespace BackupSqlServerTool
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
             tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
-            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F));
+            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
+            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 77F));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 140F));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 60F));
             tbl.Size = new Size(1041, 700);
             tbl.TabIndex = 6;
-            // 
-            // label1
-            // 
-            label1.AutoSize = true;
-            label1.Font = new Font("Segoe UI", 18F, FontStyle.Bold);
-            label1.Location = new Point(178, 0);
-            label1.Name = "label1";
-            label1.Size = new Size(236, 32);
-            label1.TabIndex = 7;
-            label1.Text = "BACKUP DATABASE";
-            label1.Click += label1_Click;
             // 
             // rtbLog
             // 
@@ -127,7 +118,7 @@ namespace BackupSqlServerTool
             rtbLog.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             rtbLog.Location = new Point(178, 81);
             rtbLog.Name = "rtbLog";
-            rtbLog.Size = new Size(427, 216);
+            rtbLog.Size = new Size(427, 197);
             rtbLog.TabIndex = 8;
             rtbLog.Text = "";
             // 
@@ -135,7 +126,7 @@ namespace BackupSqlServerTool
             // 
             tblFolder.Dock = DockStyle.Fill;
             tblFolder.Font = new Font("Segoe UI", 14.25F, FontStyle.Bold);
-            tblFolder.Location = new Point(178, 303);
+            tblFolder.Location = new Point(178, 284);
             tblFolder.Name = "tblFolder";
             tblFolder.Size = new Size(427, 33);
             tblFolder.TabIndex = 9;
@@ -146,9 +137,9 @@ namespace BackupSqlServerTool
             Folder.AutoSize = true;
             Folder.Dock = DockStyle.Fill;
             Folder.Font = new Font("Segoe UI", 14.25F, FontStyle.Bold);
-            Folder.Location = new Point(3, 300);
+            Folder.Location = new Point(3, 281);
             Folder.Name = "Folder";
-            Folder.Size = new Size(169, 40);
+            Folder.Size = new Size(169, 62);
             Folder.TabIndex = 10;
             Folder.Text = "Save Folder";
             Folder.TextAlign = ContentAlignment.TopRight;
@@ -159,7 +150,7 @@ namespace BackupSqlServerTool
             btnSelectFolder.FlatStyle = FlatStyle.Flat;
             btnSelectFolder.Font = new Font("Segoe UI", 14.25F, FontStyle.Bold);
             btnSelectFolder.ForeColor = Color.White;
-            btnSelectFolder.Location = new Point(611, 303);
+            btnSelectFolder.Location = new Point(611, 284);
             btnSelectFolder.Name = "btnSelectFolder";
             btnSelectFolder.Size = new Size(35, 34);
             btnSelectFolder.TabIndex = 11;
@@ -173,7 +164,7 @@ namespace BackupSqlServerTool
             label4.Font = new Font("Segoe UI", 12F, FontStyle.Italic);
             label4.Location = new Point(3, 78);
             label4.Name = "label4";
-            label4.Size = new Size(169, 222);
+            label4.Size = new Size(169, 203);
             label4.TabIndex = 12;
             label4.Text = "Clear folder Obj if build fail";
             label4.TextAlign = ContentAlignment.MiddleLeft;
@@ -198,7 +189,7 @@ namespace BackupSqlServerTool
             rtdFail.Location = new Point(611, 80);
             rtdFail.Margin = new Padding(3, 2, 3, 2);
             rtdFail.Name = "rtdFail";
-            rtdFail.Size = new Size(427, 218);
+            rtdFail.Size = new Size(427, 199);
             rtdFail.TabIndex = 14;
             rtdFail.Text = "";
             // 
@@ -212,7 +203,7 @@ namespace BackupSqlServerTool
             label2.Name = "label2";
             label2.Size = new Size(427, 38);
             label2.TabIndex = 15;
-            label2.Text = "INFO";
+            label2.Text = "SUCESS";
             label2.TextAlign = ContentAlignment.MiddleCenter;
             // 
             // label3
@@ -261,9 +252,9 @@ namespace BackupSqlServerTool
             tbl.SetColumnSpan(grpDbConfig, 2);
             grpDbConfig.Controls.Add(dbTable);
             grpDbConfig.Dock = DockStyle.Fill;
-            grpDbConfig.Location = new Point(178, 343);
+            grpDbConfig.Location = new Point(178, 346);
             grpDbConfig.Name = "grpDbConfig";
-            grpDbConfig.Size = new Size(860, 74);
+            grpDbConfig.Size = new Size(860, 71);
             grpDbConfig.TabIndex = 18;
             grpDbConfig.TabStop = false;
             grpDbConfig.Text = "SQL Server Configuration";
@@ -291,7 +282,7 @@ namespace BackupSqlServerTool
             dbTable.RowCount = 1;
             dbTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             dbTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
-            dbTable.Size = new Size(854, 52);
+            dbTable.Size = new Size(854, 49);
             dbTable.TabIndex = 0;
             dbTable.Paint += dbTable_Paint_1;
             // 
@@ -302,7 +293,7 @@ namespace BackupSqlServerTool
             lblDbServer.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             lblDbServer.Location = new Point(3, 0);
             lblDbServer.Name = "lblDbServer";
-            lblDbServer.Size = new Size(54, 52);
+            lblDbServer.Size = new Size(54, 49);
             lblDbServer.TabIndex = 0;
             lblDbServer.Text = "Server";
             lblDbServer.TextAlign = ContentAlignment.MiddleLeft;
@@ -324,9 +315,9 @@ namespace BackupSqlServerTool
             lblDbUser.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             lblDbUser.Location = new Point(229, 0);
             lblDbUser.Name = "lblDbUser";
-            lblDbUser.Size = new Size(44, 52);
+            lblDbUser.Size = new Size(44, 49);
             lblDbUser.TabIndex = 2;
-            lblDbUser.Text = "User:";
+            lblDbUser.Text = "User";
             lblDbUser.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // txtDbUser
@@ -341,10 +332,14 @@ namespace BackupSqlServerTool
             // 
             // lblDbPassword
             // 
+            lblDbPassword.Dock = DockStyle.Fill;
+            lblDbPassword.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lblDbPassword.Location = new Point(445, 0);
             lblDbPassword.Name = "lblDbPassword";
-            lblDbPassword.Size = new Size(74, 23);
+            lblDbPassword.Size = new Size(74, 49);
             lblDbPassword.TabIndex = 4;
+            lblDbPassword.Text = "Pass";
+            lblDbPassword.TextAlign = ContentAlignment.MiddleCenter;
             lblDbPassword.Click += lblDbPassword_Click;
             // 
             // txtDbPassword
@@ -366,7 +361,7 @@ namespace BackupSqlServerTool
             btnSaveDbConfig.ForeColor = Color.White;
             btnSaveDbConfig.Location = new Point(724, 3);
             btnSaveDbConfig.Name = "btnSaveDbConfig";
-            btnSaveDbConfig.Size = new Size(127, 46);
+            btnSaveDbConfig.Size = new Size(127, 43);
             btnSaveDbConfig.TabIndex = 7;
             btnSaveDbConfig.Text = "Kết nối && Lưu";
             btnSaveDbConfig.UseVisualStyleBackColor = false;
@@ -415,7 +410,7 @@ namespace BackupSqlServerTool
             lblFolderId.Name = "lblFolderId";
             lblFolderId.Size = new Size(94, 40);
             lblFolderId.TabIndex = 0;
-            lblFolderId.Text = "Tên Thư Mục:";
+            lblFolderId.Text = "Tên Thư Mục";
             lblFolderId.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // txtDriveFolderName
@@ -467,7 +462,7 @@ namespace BackupSqlServerTool
             lblDbList.Name = "lblDbList";
             lblDbList.Size = new Size(94, 42);
             lblDbList.TabIndex = 4;
-            lblDbList.Text = "DB Chỉ định:";
+            lblDbList.Text = "DB Chỉ định";
             lblDbList.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // txtDbList
@@ -522,7 +517,7 @@ namespace BackupSqlServerTool
             lblLocalFolder.Name = "lblLocalFolder";
             lblLocalFolder.Size = new Size(94, 52);
             lblLocalFolder.TabIndex = 0;
-            lblLocalFolder.Text = "Thư Mục:";
+            lblLocalFolder.Text = "Thư Mục";
             lblLocalFolder.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // txtLocalFolder
@@ -564,6 +559,33 @@ namespace BackupSqlServerTool
             btnLocalBackup.Text = "Backup Ngay";
             btnLocalBackup.UseVisualStyleBackColor = false;
             btnLocalBackup.Click += BtnLocalBackup_Click;
+            // 
+            // label1
+            // 
+            label1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            label1.AutoSize = true;
+            label1.Font = new Font("Segoe UI Black", 14.25F, FontStyle.Bold | FontStyle.Italic, GraphicsUnit.Point, 0);
+            label1.ForeColor = SystemColors.MenuHighlight;
+            label1.Location = new Point(3, 0);
+            label1.Name = "label1";
+            label1.Size = new Size(169, 40);
+            label1.TabIndex = 7;
+            label1.Text = "KIRA_BAUP";
+            label1.TextAlign = ContentAlignment.MiddleCenter;
+            label1.Click += label1_Click;
+            // 
+            // label5
+            // 
+            label5.AutoSize = true;
+            label5.Dock = DockStyle.Fill;
+            label5.Font = new Font("Segoe UI", 12F, FontStyle.Italic, GraphicsUnit.Point, 0);
+            label5.ForeColor = Color.DodgerBlue;
+            label5.Location = new Point(611, 0);
+            label5.Name = "label5";
+            label5.Size = new Size(427, 40);
+            label5.TabIndex = 21;
+            label5.Text = "Ductinh996@gmail.com";
+            label5.TextAlign = ContentAlignment.MiddleRight;
             // 
             // MainForm
             // 
@@ -625,5 +647,6 @@ namespace BackupSqlServerTool
         private TextBox txtLocalFolder;
         private Button btnSelectLocalFolder;
         private Button btnLocalBackup;
+        private Label label5;
     }
 }

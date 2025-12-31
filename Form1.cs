@@ -678,20 +678,18 @@ namespace BackupSqlServerTool
                     await driveHelper.Authenticate();
                 }
 
-                // 1. Get/Create Root Folder
                 string rootId = await driveHelper.GetOrCreateFolder(driveFolderName);
-                
-                // 2. Get/Create Subfolder "FileDe" inside Root Folder
-                string targetFolderId = await driveHelper.GetOrCreateFolder("FileDe", rootId);
-                
-                var files = Directory.GetFiles(localFolder);
+
+                var files = Directory.GetFiles(localFolder, "*", SearchOption.AllDirectories);
                 int count = 0;
                 int total = files.Length;
 
                 foreach (var file in files)
                 {
                     string fileName = Path.GetFileName(file);
-                    LogInfo($"Đang xử lý file ({++count}/{total}): {fileName} ...");
+                    string relPath = Path.GetRelativePath(localFolder, file);
+                    string relDir = Path.GetDirectoryName(relPath) ?? "";
+                    LogInfo($"Đang xử lý file ({++count}/{total}): {relPath} ...");
                     
                     var fi = new FileInfo(file);
                     string contentType = "application/octet-stream";
@@ -703,16 +701,25 @@ namespace BackupSqlServerTool
                     else if (ext == ".pdf") contentType = "application/pdf";
                     else if (ext == ".mp4") contentType = "video/mp4";
 
-                    // Check if file exists on Drive and has same size to skip
-                    var existingFile = await driveHelper.GetFileByName(fileName, targetFolderId);
+                    string parentId = rootId;
+                    if (!string.IsNullOrWhiteSpace(relDir))
+                    {
+                        var segments = relDir.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var segment in segments)
+                        {
+                            parentId = await driveHelper.GetOrCreateFolder(segment, parentId);
+                        }
+                    }
+
+                    var existingFile = await driveHelper.GetFileByName(fileName, parentId);
                     if (existingFile != null && existingFile.Size.HasValue && existingFile.Size.Value == fi.Length)
                     {
-                        LogInfo($"File {fileName} đã tồn tại và giống kích thước. Bỏ qua.");
+                        LogInfo($"Bỏ qua vì trùng kích thước: {relPath}");
                         continue;
                     }
 
-                    await driveHelper.UploadOrUpdateFile(file, fileName, targetFolderId, contentType);
-                    LogInfo($"Upload thành công: {fileName} vào thư mục FileDe");
+                    await driveHelper.UploadOrUpdateFile(file, fileName, parentId, contentType);
+                    LogInfo($"Upload thành công: {relPath}");
                 }
 
                 LogInfo("Backup thư mục hoàn tất!");
