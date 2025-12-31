@@ -1,10 +1,16 @@
-﻿using log4net;
+using log4net;
 using log4net.Config;
 using System.Data.SqlClient;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Timers;
 using System.Xml;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
+using System;
+using System.Windows.Forms;
+using System.Drawing;
 
 namespace BackupSqlServerTool
 {
@@ -14,11 +20,15 @@ namespace BackupSqlServerTool
         private System.Timers.Timer cleanupTimer;
         private static readonly ILog log = LogManager.GetLogger(typeof(MainForm));
 
+        private GoogleDriveHelper driveHelper;
+        private string? currentDbPassword;
+
         public MainForm()
         {
             InitializeComponent();
-            XmlConfigurator.Configure(new FileInfo("App.config")); // Hoặc sử dụng một file cấu hình riêng
+            XmlConfigurator.Configure(new FileInfo("App.config"));
             this.Load += MainForm_Load;
+
             backupTimer = new System.Timers.Timer();
             backupTimer.Elapsed += OnBackupEvent;
             backupTimer.AutoReset = true;
@@ -26,10 +36,17 @@ namespace BackupSqlServerTool
             cleanupTimer = new System.Timers.Timer();
             cleanupTimer.Elapsed += OnCleanupEvent;
             cleanupTimer.AutoReset = true;
+
+            driveHelper = new GoogleDriveHelper();
         }
 
         private void MainForm_Load(object sender, EventArgs e)
         {
+            // Load Config
+            txtDriveFolderName.Text = GetConfigValue("DriveFolderName");
+            txtDbList.Text = GetConfigValue("BackupDatabases");
+            LoadDbConfigToFields();
+
             DateTime backupScheduledTime = DateTime.Today.AddHours(0); // 0h hàng ngày
             if (DateTime.Now > backupScheduledTime)
             {
@@ -49,7 +66,64 @@ namespace BackupSqlServerTool
             cleanupTimer.Start();
         }
 
-        private void Backup()
+        private async void BtnLoginDrive_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                await driveHelper.Authenticate();
+                string email = await driveHelper.GetUserEmail();
+                lblDriveStatus.Text = $"Trạng thái: Đã kết nối ({email})";
+                lblDriveStatus.ForeColor = Color.Green;
+
+                MessageBox.Show($"Đăng nhập Google Drive thành công!\nTài khoản: {email}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                LogInfo($"Logged in to Google Drive successfully as {email}.");
+            }
+            catch (Exception ex)
+            {
+                lblDriveStatus.Text = "Trạng thái: Lỗi kết nối";
+                lblDriveStatus.ForeColor = Color.Red;
+                MessageBox.Show($"Lỗi đăng nhập: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LogError($"Google Drive login error: {ex.Message}");
+            }
+        }
+
+        private void TxtDriveFolderName_TextChanged(object sender, EventArgs e)
+        {
+            SaveConfigValue("DriveFolderName", txtDriveFolderName.Text);
+        }
+
+        private void TxtDbList_TextChanged(object sender, EventArgs e)
+        {
+            SaveConfigValue("BackupDatabases", txtDbList.Text);
+        }
+
+        private void BtnSaveDbConfig_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string server = txtDbServer.Text?.Trim() ?? "";
+                string user = txtDbUser.Text?.Trim() ?? "";
+                string passwordInput = txtDbPassword.Text ?? "";
+                string password = string.IsNullOrEmpty(passwordInput) ? (currentDbPassword ?? "") : passwordInput;
+                string conn = $"Server={server};User Id={user};Password={password};Encrypt=false;TrustServerCertificate=True";
+                using (SqlConnection connection = new SqlConnection(conn))
+                {
+                    connection.Open();
+                }
+                SaveConnectionString("DefaultConnection", conn);
+                currentDbPassword = password;
+                txtDbPassword.Text = "";
+                LogInfo("Kết nối DB thành công và đã lưu cấu hình.");
+                MessageBox.Show("Kết nối DB thành công và đã lưu cấu hình.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                LogError($"Lỗi kết nối DB: {ex.Message}");
+                MessageBox.Show($"Lỗi kết nối DB: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async Task Backup()
         {
             try
             {
@@ -61,7 +135,31 @@ namespace BackupSqlServerTool
                 }
 
                 string connectionString = GetConnectionString("DefaultConnection");
-                BackupAllDatabases(connectionString, backupFolder, dateString);
+                var dbListConfig = GetConfigValue("BackupDatabases");
+                if (!string.IsNullOrWhiteSpace(dbListConfig))
+                {
+                    var targetDbs = new List<string>();
+                    foreach (var part in dbListConfig.Split(','))
+                    {
+                        var name = part.Trim();
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            targetDbs.Add(name);
+                        }
+                    }
+                    if (targetDbs.Count > 0)
+                    {
+                        BackupSelectedDatabases(connectionString, backupFolder, dateString, targetDbs);
+                    }
+                    else
+                    {
+                        BackupAllDatabases(connectionString, backupFolder, dateString);
+                    }
+                }
+                else
+                {
+                    BackupAllDatabases(connectionString, backupFolder, dateString);
+                }
 
                 string zipFolder = Path.Combine(tblFolder.Text, "BackupSQL", dateString);
                 if (!Directory.Exists(zipFolder))
@@ -69,11 +167,42 @@ namespace BackupSqlServerTool
                     Directory.CreateDirectory(zipFolder);
                 }
 
-                CompressBackupFiles(backupFolder, zipFolder);
+                // Nén file và lấy danh sách file zip đã tạo
+                List<string> zipFiles = CompressBackupFiles(backupFolder, zipFolder);
 
                 // Xóa các tệp chi tiết đã được nén
                 Directory.Delete(backupFolder, true);
                 LogInfo($"Backup and compression completed successfully for {dateString}");
+
+                // Upload lên Google Drive
+                if (!string.IsNullOrEmpty(txtDriveFolderName.Text))
+                {
+                    LogInfo("Starting upload to Google Drive...");
+                    try
+                    {
+                        string folderId = await driveHelper.GetOrCreateFolder(txtDriveFolderName.Text);
+                        LogInfo($"Target Drive Folder: '{txtDriveFolderName.Text}' (ID: {folderId})");
+
+                        foreach (var zipFilePath in zipFiles)
+                        {
+                            try
+                            {
+                                string fileName = Path.GetFileName(zipFilePath);
+                                await driveHelper.UploadOrUpdateFile(zipFilePath, fileName, folderId);
+                                LogInfo($"Uploaded/Updated file to Drive: {fileName}");
+                            }
+                            catch (Exception ex)
+                            {
+                                LogError($"Error uploading file {zipFilePath}: {ex.Message}");
+                            }
+                        }
+                        LogInfo("Google Drive upload process finished.");
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError($"Error preparing Drive folder: {ex.Message}");
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -81,11 +210,11 @@ namespace BackupSqlServerTool
             }
         }
 
-        private void OnBackupEvent(object sender, ElapsedEventArgs e)
+        private async void OnBackupEvent(object sender, ElapsedEventArgs e)
         {
             try
             {
-                Backup();
+                await Backup();
             }
             catch (Exception ex)
             {
@@ -122,7 +251,6 @@ namespace BackupSqlServerTool
                     {
                         if (DateTime.Now - directory.CreationTime > TimeSpan.FromDays(days) && directory.Name != "Details")
                         {
-                            // Kiểm tra và xóa thuộc tính chỉ đọc nếu có
                             if ((directory.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
                             {
                                 directory.Attributes = FileAttributes.Normal;
@@ -161,6 +289,108 @@ namespace BackupSqlServerTool
             throw new Exception($"Connection string '{name}' not found.");
         }
 
+        private void SaveConnectionString(string name, string connectionString)
+        {
+            XmlDocument xmlDoc = new XmlDocument();
+            xmlDoc.Load("AppConfig.xml");
+            XmlNode node = xmlDoc.SelectSingleNode($"/configuration/connectionStrings/add[@name='{name}']");
+            if (node == null)
+            {
+                XmlNode connStringsNode = xmlDoc.SelectSingleNode("/configuration/connectionStrings");
+                if (connStringsNode == null)
+                {
+                    connStringsNode = xmlDoc.CreateElement("connectionStrings");
+                    xmlDoc.DocumentElement.AppendChild(connStringsNode);
+                }
+                XmlElement elem = xmlDoc.CreateElement("add");
+                elem.SetAttribute("name", name);
+                elem.SetAttribute("connectionString", connectionString);
+                connStringsNode.AppendChild(elem);
+            }
+            else
+            {
+                node.Attributes["connectionString"].Value = connectionString;
+            }
+            xmlDoc.Save("AppConfig.xml");
+        }
+
+        private string GetConfigValue(string key)
+        {
+            try
+            {
+                XmlDocument xmlDoc = new XmlDocument();
+                xmlDoc.Load("AppConfig.xml");
+                XmlNode node = xmlDoc.SelectSingleNode($"/configuration/appSettings/add[@key='{key}']");
+                return node?.Attributes["value"]?.Value ?? "";
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private void LoadDbConfigToFields()
+        {
+            try
+            {
+                var conn = GetConnectionString("DefaultConnection");
+                var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var part in conn.Split(';'))
+                {
+                    if (string.IsNullOrWhiteSpace(part)) continue;
+                    var kv = part.Split('=', 2);
+                    if (kv.Length == 2)
+                    {
+                        var key = kv[0].Trim();
+                        var val = kv[1].Trim();
+                        dict[key] = val;
+                    }
+                }
+                string server = dict.ContainsKey("Server") ? dict["Server"] : (dict.ContainsKey("Data Source") ? dict["Data Source"] : "");
+                string user = dict.ContainsKey("User Id") ? dict["User Id"] : (dict.ContainsKey("Uid") ? dict["Uid"] : "");
+                string password = dict.ContainsKey("Password") ? dict["Password"] : (dict.ContainsKey("Pwd") ? dict["Pwd"] : "");
+                txtDbServer.Text = server;
+                txtDbUser.Text = user;
+                txtDbPassword.Text = password;
+                currentDbPassword = password;
+            }
+            catch
+            {
+            }
+        }
+        private void SaveConfigValue(string key, string value)
+        {
+            try
+            {
+                XmlDocument xmlDoc = new XmlDocument();
+                xmlDoc.Load("AppConfig.xml");
+                XmlNode node = xmlDoc.SelectSingleNode($"/configuration/appSettings/add[@key='{key}']");
+                if (node == null)
+                {
+                    // Nếu chưa có thì tạo mới (dù đã add tay vào file xml rồi nhưng cứ phòng hờ)
+                    XmlNode appSettingsNode = xmlDoc.SelectSingleNode("/configuration/appSettings");
+                    if (appSettingsNode == null)
+                    {
+                        appSettingsNode = xmlDoc.CreateElement("appSettings");
+                        xmlDoc.DocumentElement.AppendChild(appSettingsNode);
+                    }
+                    XmlElement elem = xmlDoc.CreateElement("add");
+                    elem.SetAttribute("key", key);
+                    elem.SetAttribute("value", value);
+                    appSettingsNode.AppendChild(elem);
+                }
+                else
+                {
+                    node.Attributes["value"].Value = value;
+                }
+                xmlDoc.Save("AppConfig.xml");
+            }
+            catch (Exception ex)
+            {
+                LogError($"Error saving config: {ex.Message}");
+            }
+        }
+
         private void BackupAllDatabases(string connectionString, string backupRootFolder, string dateString)
         {
             try
@@ -176,7 +406,7 @@ namespace BackupSqlServerTool
                     {
                         databaseNames.Add(reader["name"].ToString());
                     }
-                    reader.Close(); // Đảm bảo rằng SqlDataReader được đóng trước khi thực hiện lệnh SQL khác
+                    reader.Close();
 
                     foreach (var databaseName in databaseNames)
                     {
@@ -204,13 +434,69 @@ namespace BackupSqlServerTool
             }
         }
 
-        private void CompressBackupFiles(string sourceFolder, string endFolder)
+        private void BackupSelectedDatabases(string connectionString, string backupRootFolder, string dateString, List<string> databaseNames)
+        {
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    foreach (var databaseName in databaseNames)
+                    {
+                        try
+                        {
+                            using (SqlCommand existsCmd = new SqlCommand("SELECT COUNT(1) FROM sys.databases WHERE name = @name", connection))
+                            {
+                                existsCmd.Parameters.AddWithValue("@name", databaseName);
+                                var exists = (int)existsCmd.ExecuteScalar() > 0;
+                                if (!exists)
+                                {
+                                    LogError($"Database '{databaseName}' không tồn tại.");
+                                    continue;
+                                }
+                            }
+
+                            string backupFileName = Path.Combine(backupRootFolder, $"{databaseName}_{dateString}.bak");
+                            string backupQuery = $"BACKUP DATABASE [{databaseName}] TO DISK='{backupFileName}'";
+
+                            using (SqlCommand backupCommand = new SqlCommand(backupQuery, connection))
+                            {
+                                backupCommand.ExecuteNonQuery();
+                            }
+                            LogInfo($"Database {databaseName} backed up successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            LogError($"Error backing up database {databaseName}: {ex.Message}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError($"Error during backup process: {ex.Message}");
+            }
+        }
+
+        private List<string> CompressBackupFiles(string sourceFolder, string endFolder)
         {
             string[] backupFiles = Directory.GetFiles(sourceFolder, "*.bak");
+            var compressedFiles = new List<string>();
 
             foreach (string backupFile in backupFiles)
             {
-                string zipFileName = Path.GetFileNameWithoutExtension(backupFile) + "_" + DateTime.Now.ToString("HHmmss") + ".zip";
+                // Thay đổi tên file theo Thứ trong tuần: DBName_Monday.zip
+                string dbName = Path.GetFileNameWithoutExtension(backupFile).Split('_')[0]; // Giả định format tên là DBName_Date.bak
+                                                                                            // Nếu tên db có chứa dấu _ thì có thể sai, nên lấy substring đến trước _ cuối cùng thì an toàn hơn, 
+                                                                                            // nhưng ở BackupAllDatabases đang lưu là $"{databaseName}_{dateString}.bak".
+                                                                                            // dateString là yyyyMMdd (8 ký tự).
+
+                string originalFileName = Path.GetFileNameWithoutExtension(backupFile);
+                string realDbName = originalFileName.Substring(0, originalFileName.Length - 9); // Bỏ _yyyyMMdd
+
+                string dayOfWeek = DateTime.Now.DayOfWeek.ToString();
+                string zipFileName = $"{realDbName}_{dayOfWeek}.zip";
+
                 string zipFilePath = Path.Combine(endFolder, zipFileName);
 
                 using (FileStream zipFile = new FileStream(zipFilePath, FileMode.Create))
@@ -224,7 +510,10 @@ namespace BackupSqlServerTool
                 // Xóa tệp backup đã được nén
                 File.Delete(backupFile);
                 LogInfo($"File {backupFile} compressed to {zipFileName}");
+
+                compressedFiles.Add(zipFilePath);
             }
+            return compressedFiles;
         }
 
         private void LogInfo(string message)
@@ -255,7 +544,7 @@ namespace BackupSqlServerTool
 
         private void OpenLogFile()
         {
-            string logFilePath = Path.Combine(Directory.GetCurrentDirectory(), "logs"); // Đặt đường dẫn tới file log của bạn
+            string logFilePath = Path.Combine(Directory.GetCurrentDirectory(), "logs");
             try
             {
                 Process.Start(new ProcessStartInfo
@@ -274,9 +563,9 @@ namespace BackupSqlServerTool
         {
         }
 
-        private void btnUpdate_Click(object sender, EventArgs e)
+        private async void btnUpdate_Click(object sender, EventArgs e)
         {
-            Backup();
+            await Backup();
         }
 
         private void btnSelectFolder_Click(object sender, EventArgs e)
@@ -303,5 +592,19 @@ namespace BackupSqlServerTool
             OpenLogFile();
         }
 
+        private void dbTable_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void lblDbPassword_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void dbTable_Paint_1(object sender, PaintEventArgs e)
+        {
+
+        }
     }
 }

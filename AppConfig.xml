@@ -1,5 +1,9 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <configuration>
+	<appSettings>
+		<add key="DriveFolderName" value="" />
+		<add key="BackupDatabases" value="" />
+	</appSettings>
 	<connectionStrings>
 		<add name="DefaultConnection"
 			 connectionString="Server=KIRA-ZF;User Id=sasa;Password=abc@123;Encrypt=false;TrustServerCertificate=True" />
