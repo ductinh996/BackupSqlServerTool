@@ -197,5 +197,27 @@ namespace BackupSqlServerTool
             var file = await GetFileByName(fileName, folderId);
             return file?.Id;
         }
+
+        public async Task<Dictionary<string, Google.Apis.Drive.v3.Data.File>> GetFilesMap(string folderId)
+        {
+            if (service == null) await Authenticate();
+            var map = new Dictionary<string, Google.Apis.Drive.v3.Data.File>();
+            string pageToken = null;
+            do
+            {
+                var request = service.Files.List();
+                request.Q = $"'{folderId}' in parents and trashed = false";
+                request.Fields = "nextPageToken, files(id, name, size, md5Checksum, modifiedTime)";
+                request.PageSize = 1000;
+                request.PageToken = pageToken;
+                var result = await request.ExecuteAsync();
+                foreach (var f in result.Files)
+                {
+                    map[f.Name] = f;
+                }
+                pageToken = result.NextPageToken;
+            } while (!string.IsNullOrEmpty(pageToken));
+            return map;
+        }
     }
 }

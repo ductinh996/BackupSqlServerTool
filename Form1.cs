@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System;
 using System.Windows.Forms;
 using System.Drawing;
+using System.Security.Cryptography;
 
 namespace BackupSqlServerTool
 {
@@ -646,6 +647,14 @@ namespace BackupSqlServerTool
             }
         }
 
+        private static string ComputeMD5(string path)
+        {
+            using var md5 = MD5.Create();
+            using var stream = File.OpenRead(path);
+            var hash = md5.ComputeHash(stream);
+            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+        }
+
         private async Task PerformFileBackup(bool isAuto)
         {
             string localFolder = txtLocalFolder.Text.Trim();
@@ -684,6 +693,9 @@ namespace BackupSqlServerTool
                 string localFolderName = new DirectoryInfo(localFolder).Name;
                 string rootId = await driveHelper.GetOrCreateFolder(localFolderName, baseRootId);
 
+                var folderCache = new Dictionary<string, string>();
+                var filesCache = new Dictionary<string, Dictionary<string, Google.Apis.Drive.v3.Data.File>>();
+
                 var files = Directory.GetFiles(localFolder, "*", SearchOption.AllDirectories);
                 int count = 0;
                 int total = files.Length;
@@ -709,17 +721,42 @@ namespace BackupSqlServerTool
                     if (!string.IsNullOrWhiteSpace(relDir))
                     {
                         var segments = relDir.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                        string pathKey = "";
                         foreach (var segment in segments)
                         {
-                            parentId = await driveHelper.GetOrCreateFolder(segment, parentId);
+                            pathKey = string.IsNullOrEmpty(pathKey) ? segment : pathKey + "/" + segment;
+                            if (!folderCache.TryGetValue(pathKey, out var segId))
+                            {
+                                segId = await driveHelper.GetOrCreateFolder(segment, parentId);
+                                folderCache[pathKey] = segId;
+                            }
+                            parentId = segId;
                         }
                     }
 
-                    var existingFile = await driveHelper.GetFileByName(fileName, parentId);
-                    if (existingFile != null && existingFile.Size.HasValue && existingFile.Size.Value == fi.Length)
+                    if (!filesCache.TryGetValue(parentId, out var filesMap))
                     {
-                        LogInfo($"Bỏ qua vì trùng kích thước: {relPath}");
-                        continue;
+                        filesMap = await driveHelper.GetFilesMap(parentId);
+                        filesCache[parentId] = filesMap;
+                    }
+                    filesMap.TryGetValue(fileName, out var existingFile);
+                    if (existingFile != null)
+                    {
+                        var driveMd5 = existingFile.Md5Checksum;
+                        if (!string.IsNullOrEmpty(driveMd5))
+                        {
+                            var localMd5 = ComputeMD5(file);
+                            if (string.Equals(driveMd5, localMd5, StringComparison.OrdinalIgnoreCase))
+                            {
+                                LogInfo($"Bỏ qua vì trùng nội dung: {relPath}");
+                                continue;
+                            }
+                        }
+                        else if (existingFile.Size.HasValue && existingFile.Size.Value == fi.Length)
+                        {
+                            LogInfo($"Bỏ qua vì trùng kích thước: {relPath}");
+                            continue;
+                        }
                     }
 
                     await driveHelper.UploadOrUpdateFile(file, fileName, parentId, contentType);
